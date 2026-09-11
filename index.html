@@ -6,11 +6,7 @@
     <title>Unity Web Player | VivienneFairytaleMagic</title>
     <link rel="shortcut icon" href="TemplateData/favicon.ico">
     <link rel="stylesheet" href="TemplateData/style.css">
-    <!-- Инициализация VK Bridge для удаления загрузочного экрана ВК -->
     <script src="https://unpkg.com/@vkontakte/vk-bridge/dist/browser/vk-bridge.js"></script>
-    <script>
-      vkBridge.send('VKWebAppInit');
-    </script>
   </head>
   <body>
     <div id="unity-container" class="unity-desktop">
@@ -85,6 +81,12 @@
           document.querySelector("#unity-progress-bar-full").style.width = 100 * progress + "%";
         }).then((unityInstance) => {
           document.querySelector("#unity-loading-bar").style.display = "none";
+          
+          // Отправка сигнала ВКонтакте для скрытия экрана загрузки
+          if (typeof vkBridge !== 'undefined') {
+            vkBridge.send('VKWebAppInit');
+          }
+
           document.querySelector("#unity-fullscreen-button").onclick = () => {
             unityInstance.SetFullscreen(1);
           };
