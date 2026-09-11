@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     
-    <!-- 1. Запрет кэширования index.html браузером игрока -->
+    <!-- Запрет кэширования страницы -->
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
@@ -13,8 +13,7 @@
     <link rel="shortcut icon" href="TemplateData/favicon.ico">
     <link rel="stylesheet" href="TemplateData/style.css">
     
-    <!-- Подключение VK Bridge -->
-    <script src="https://unpkg.com/@vkontakte/vk-bridge/dist/browser/vk-bridge.js"></script>
+    <script src="https://unpkg.com/@vkontakte/vk-bridge/dist/browser/vk-bridge.js" async></script>
   </head>
   <body>
     <div id="unity-container" class="unity-desktop">
@@ -34,31 +33,29 @@
     </div>
 
     <script>
-      // 2. Бронебойная функция снятия шторки ВК (работает поверх AdBlock)
-      function forceVKInit() {
-        // Вариант А: Нативный браузерный postMessage (AdBlock не может его перехватить/заблокировать)
-        try {
-          if (window.parent && window.parent !== window) {
-            window.parent.postMessage(JSON.stringify({
-              type: 'VKWebAppInit',
-              handler: 'VKWebAppInit',
-              params: {}
-            }), '*');
-          }
-        } catch (e) {}
+      function notifyVK() {
+        // 1. Отправка напрямую в родительский контейнер ВК по спецификации VK Connect
+        if (window.parent && window.parent !== window) {
+          var payload = {
+            handler: 'VKWebAppInit',
+            params: {},
+            type: 'vk-connect'
+          };
+          window.parent.postMessage(payload, '*');
+          try {
+            window.parent.postMessage(JSON.stringify(payload), '*');
+          } catch (e) {}
+        }
 
-        // Вариант Б: Стандартный VK Bridge
-        try {
-          if (typeof vkBridge !== 'undefined' && vkBridge.send) {
-            vkBridge.send('VKWebAppInit').catch(function() {});
-          }
-        } catch (e) {}
+        // 2. Вызов через VK Bridge, если библиотека загрузилась
+        if (typeof vkBridge !== 'undefined' && vkBridge.send) {
+          vkBridge.send('VKWebAppInit').catch(function() {});
+        }
       }
 
-      // 3. Запускаем регулярную отправку сигнала каждые 500 мс, 
-      // чтобы ВК гарантированно снял шторку в любой момент готовности
-      var vkInitTimer = setInterval(forceVKInit, 500);
-      forceVKInit();
+      // Запуск отправки сигнала при старте и каждые 300 мс до завершения загрузки
+      notifyVK();
+      var initInterval = setInterval(notifyVK, 300);
 
       var canvas = document.querySelector("#unity-canvas");
 
@@ -117,11 +114,10 @@
         }).then((unityInstance) => {
           document.querySelector("#unity-loading-bar").style.display = "none";
           
-          // Игра полностью загружена: даем финальный импульс и останавливаем таймер
-          forceVKInit();
+          notifyVK();
           setTimeout(function() {
-            clearInterval(vkInitTimer);
-          }, 3000);
+            clearInterval(initInterval);
+          }, 4000);
 
           document.querySelector("#unity-fullscreen-button").onclick = () => {
             unityInstance.SetFullscreen(1);
