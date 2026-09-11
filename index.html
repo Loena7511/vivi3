@@ -6,7 +6,32 @@
     <title>Unity Web Player | VivienneFairytaleMagic</title>
     <link rel="shortcut icon" href="TemplateData/favicon.ico">
     <link rel="stylesheet" href="TemplateData/style.css">
+    
+    <!-- Подключение VK Bridge -->
     <script src="https://unpkg.com/@vkontakte/vk-bridge/dist/browser/vk-bridge.js"></script>
+    
+    <script>
+      // Функция отправки сигнала готовности во ВКонтакте
+      function sendVkInit() {
+        // 1. Стандартный вызов через VK Bridge
+        if (typeof vkBridge !== 'undefined') {
+          vkBridge.send('VKWebAppInit');
+        }
+        // 2. Прямой резервный вызов для Chrome (на случай блокировки внешнего скрипта)
+        try {
+          window.parent.postMessage(JSON.stringify({
+            type: 'vk-connect-react',
+            handler: 'VKWebAppInit',
+            params: {}
+          }), '*');
+        } catch (e) {}
+      }
+
+      // Отправляем сигнал на всех этапах загрузки
+      sendVkInit();
+      document.addEventListener('DOMContentLoaded', sendVkInit);
+      window.addEventListener('load', sendVkInit);
+    </script>
   </head>
   <body>
     <div id="unity-container" class="unity-desktop">
@@ -82,10 +107,7 @@
         }).then((unityInstance) => {
           document.querySelector("#unity-loading-bar").style.display = "none";
           
-          // Отправка сигнала ВКонтакте для скрытия экрана загрузки
-          if (typeof vkBridge !== 'undefined') {
-            vkBridge.send('VKWebAppInit');
-          }
+          sendVkInit();
 
           document.querySelector("#unity-fullscreen-button").onclick = () => {
             unityInstance.SetFullscreen(1);
