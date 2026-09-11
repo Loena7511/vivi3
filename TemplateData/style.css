@@ -6,3 +6,12 @@ html, body {
   overflow: hidden;
   background: #000;
 }
+#unity-container {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+}
+#unity-canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
