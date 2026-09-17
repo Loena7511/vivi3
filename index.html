@@ -35,7 +35,6 @@
 
     <script>
       function notifyVK() {
-        // 1. Отправка напрямую в родительский контейнер ВК по спецификации VK Connect
         if (window.parent && window.parent !== window) {
           var payload = {
             handler: 'VKWebAppInit',
@@ -48,13 +47,12 @@
           } catch (e) {}
         }
 
-        // 2. Вызов через VK Bridge, если библиотека загрузилась
         if (typeof vkBridge !== 'undefined' && vkBridge.send) {
           vkBridge.send('VKWebAppInit').catch(function() {});
         }
       }
 
-      // Функция обработки покупок в ВК с гарантированным дублированием
+      // Функция обработки покупок в ВК с передачей успеха в Unity
       function vkShowOrderBox(itemId) {
         console.log('>>> [vkShowOrderBox] Запрос покупки товара:', itemId);
 
@@ -67,13 +65,16 @@
           type: 'vk-connect'
         };
 
-        // Вызов через VK Bridge
         if (typeof vkBridge !== 'undefined' && vkBridge.send) {
           vkBridge.send('VKWebAppShowOrderBox', {
             type: 'item',
             item: itemId
           }).then(function(data) {
             console.log('Успешная покупка:', data);
+            // Передаем название купленного товара в GameManager в Unity
+            if (window.unityInstance) {
+              window.unityInstance.SendMessage('GameManager', 'GiveRewardByVKId', itemId);
+            }
           }).catch(function(error) {
             console.error('Ошибка покупки VK Bridge:', error);
           });
@@ -81,7 +82,6 @@
           console.warn('vkBridge не найден на странице!');
         }
 
-        // Дублирующий вызов через postMessage прямо в фрейм ВК
         if (window.parent && window.parent !== window) {
           window.parent.postMessage(payload, '*');
           try {
@@ -90,7 +90,6 @@
         }
       }
 
-      // Запуск отправки сигнала при старте и каждые 300 мс до завершения загрузки
       notifyVK();
       var initInterval = setInterval(notifyVK, 300);
 
