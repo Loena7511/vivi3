@@ -53,6 +53,20 @@
         }
       }
 
+      // Функция обработки покупок в ВК
+      function vkShowOrderBox(itemId) {
+        if (typeof vkBridge !== 'undefined' && vkBridge.send) {
+          vkBridge.send('VKWebAppShowOrderBox', {
+            type: 'item',
+            item: itemId
+          }).then(function(data) {
+            console.log('Успешная покупка:', data);
+          }).catch(function(error) {
+            console.log('Ошибка покупки:', error);
+          });
+        }
+      }
+
       // Запуск отправки сигнала при старте и каждые 300 мс до завершения загрузки
       notifyVK();
       var initInterval = setInterval(notifyVK, 300);
