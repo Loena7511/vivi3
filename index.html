@@ -13,7 +13,8 @@
     <link rel="shortcut icon" href="TemplateData/favicon.ico">
     <link rel="stylesheet" href="TemplateData/style.css">
     
-    <script src="https://unpkg.com/@vkontakte/vk-bridge/dist/browser/vk-bridge.js" async></script>
+    <!-- Подключение VK Bridge -->
+    <script src="https://unpkg.com/@vkontakte/vk-bridge/dist/browser.min.js"></script>
   </head>
   <body>
     <div id="unity-container" class="unity-desktop">
@@ -53,8 +54,20 @@
         }
       }
 
-      // Функция обработки покупок в ВК
+      // Функция обработки покупок в ВК с гарантированным дублированием
       function vkShowOrderBox(itemId) {
+        console.log('>>> [vkShowOrderBox] Запрос покупки товара:', itemId);
+
+        var payload = {
+          handler: 'VKWebAppShowOrderBox',
+          params: {
+            type: 'item',
+            item: itemId
+          },
+          type: 'vk-connect'
+        };
+
+        // Вызов через VK Bridge
         if (typeof vkBridge !== 'undefined' && vkBridge.send) {
           vkBridge.send('VKWebAppShowOrderBox', {
             type: 'item',
@@ -62,8 +75,18 @@
           }).then(function(data) {
             console.log('Успешная покупка:', data);
           }).catch(function(error) {
-            console.log('Ошибка покупки:', error);
+            console.error('Ошибка покупки VK Bridge:', error);
           });
+        } else {
+          console.warn('vkBridge не найден на странице!');
+        }
+
+        // Дублирующий вызов через postMessage прямо в фрейм ВК
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage(payload, '*');
+          try {
+            window.parent.postMessage(JSON.stringify(payload), '*');
+          } catch (e) {}
         }
       }
 
