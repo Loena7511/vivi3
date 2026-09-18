@@ -34,36 +34,44 @@
     <script>
       var currentPurchasingItem = '';
 
+      // Защита от тройного зачисления: выдаем награду ровно 1 раз
+      function sendRewardToUnity(itemId, source) {
+        var itemToReward = itemId || currentPurchasingItem;
+        
+        // Если покупка уже обработана — игнорируем дублирующие сигналы
+        if (!itemToReward || itemToReward === 'PROCESSED') {
+          return;
+        }
+
+        var finalItem = itemToReward;
+        currentPurchasingItem = 'PROCESSED'; // Ставим замок
+
+        console.log('>>> [' + source + '] Успешно! Начисление награды в Unity (1 раз):', finalItem);
+        if (window.unityInstance) {
+          window.unityInstance.SendMessage('GameManager', 'GiveRewardByVKId', finalItem);
+        } else {
+          console.error('>>> Ошибка: unityInstance не найден!');
+        }
+      }
+
       // Инициализация VK Bridge
       if (typeof vkBridge !== 'undefined') {
         vkBridge.send('VKWebAppInit');
 
-        // Подписка на глобальные события ВК
+        // 1. Подписка на глобальные события ВК
         vkBridge.subscribe(function(e) {
           if (!e || !e.detail) return;
           var type = e.detail.type;
           var data = e.detail.data;
 
           if (type === 'VKWebAppShowOrderBoxResult') {
-            console.log('>>> [VK Event] Успешная покупка!', data);
-            var itemId = currentPurchasingItem || (data && data.item);
+            var itemId = (data && data.item) || currentPurchasingItem;
             sendRewardToUnity(itemId, 'VK Bridge Subscribe');
           }
         });
       }
 
-      // Функция отправки награды в Unity
-      function sendRewardToUnity(itemId, source) {
-        if (!itemId) itemId = currentPurchasingItem;
-        console.log('>>> [' + source + '] Начисление награды в Unity для:', itemId);
-        if (window.unityInstance && itemId) {
-          window.unityInstance.SendMessage('GameManager', 'GiveRewardByVKId', itemId);
-        } else {
-          console.error('>>> Ошибка: unityInstance не найден или ID товара пуст!');
-        }
-      }
-
-      // Подстраховка через сообщения окна
+      // 2. Подстраховка через postMessage
       window.addEventListener('message', function(event) {
         if (!event.data) return;
         var data = event.data;
@@ -72,14 +80,13 @@
         }
         var type = data.type || (data.detail && data.detail.type) || data.handler;
         if (type === 'VKWebAppShowOrderBoxResult') {
-          console.log('>>> [postMessage] Успешная покупка!', data);
           sendRewardToUnity(currentPurchasingItem, 'postMessage');
         }
       });
 
-      // Функция вызова окна покупки
+      // 3. Вызов окна покупки
       function vkShowOrderBox(itemId) {
-        console.log('>>> [vkShowOrderBox] Покупка товара:', itemId);
+        console.log('>>> [vkShowOrderBox] Старт покупки товара:', itemId);
         currentPurchasingItem = itemId;
 
         if (typeof vkBridge !== 'undefined' && vkBridge.send) {
@@ -87,7 +94,6 @@
             type: 'item',
             item: itemId
           }).then(function(data) {
-            console.log('>>> [Promise] Покупка завершена:', data);
             var targetItem = itemId || (data && data.item);
             sendRewardToUnity(targetItem, 'VK Bridge Promise');
           }).catch(function(err) {
