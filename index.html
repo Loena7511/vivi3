@@ -33,20 +33,21 @@
 
     <script>
       var currentPurchasingItem = '';
+      var isPaymentProcessed = false;
 
-      // Защита от тройного зачисления: выдаем награду ровно 1 раз
+      // Функция единичного начисления награды
       function sendRewardToUnity(itemId, source) {
-        var itemToReward = itemId || currentPurchasingItem;
-        
-        // Если покупка уже обработана — игнорируем дублирующие сигналы
-        if (!itemToReward || itemToReward === 'PROCESSED') {
+        if (isPaymentProcessed) {
+          console.log('>>> [' + source + '] Повторный сигнал проигнорирован (награда уже выдана)');
           return;
         }
 
-        var finalItem = itemToReward;
-        currentPurchasingItem = 'PROCESSED'; // Ставим замок
+        var finalItem = itemId || currentPurchasingItem;
+        if (!finalItem) return;
 
-        console.log('>>> [' + source + '] Успешно! Начисление награды в Unity (1 раз):', finalItem);
+        isPaymentProcessed = true; // Замок закрывается с первого вызова
+
+        console.log('>>> [' + source + '] Начисление награды в Unity (строго 1 раз):', finalItem);
         if (window.unityInstance) {
           window.unityInstance.SendMessage('GameManager', 'GiveRewardByVKId', finalItem);
         } else {
@@ -58,7 +59,6 @@
       if (typeof vkBridge !== 'undefined') {
         vkBridge.send('VKWebAppInit');
 
-        // 1. Подписка на глобальные события ВК
         vkBridge.subscribe(function(e) {
           if (!e || !e.detail) return;
           var type = e.detail.type;
@@ -71,7 +71,7 @@
         });
       }
 
-      // 2. Подстраховка через postMessage
+      // Подстраховка через postMessage
       window.addEventListener('message', function(event) {
         if (!event.data) return;
         var data = event.data;
@@ -84,10 +84,11 @@
         }
       });
 
-      // 3. Вызов окна покупки
+      // Вызов окна покупки
       function vkShowOrderBox(itemId) {
         console.log('>>> [vkShowOrderBox] Старт покупки товара:', itemId);
         currentPurchasingItem = itemId;
+        isPaymentProcessed = false; // Открываем замок только для НОВОЙ покупки
 
         if (typeof vkBridge !== 'undefined' && vkBridge.send) {
           vkBridge.send('VKWebAppShowOrderBox', {
