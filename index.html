@@ -4,7 +4,6 @@
     <meta charset="utf-8">
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     
-    <!-- Запрет кэширования страницы -->
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
@@ -13,7 +12,6 @@
     <link rel="shortcut icon" href="TemplateData/favicon.ico">
     <link rel="stylesheet" href="TemplateData/style.css">
     
-    <!-- Подключение VK Bridge -->
     <script src="https://unpkg.com/@vkontakte/vk-bridge/dist/browser.min.js"></script>
   </head>
   <body>
@@ -34,46 +32,55 @@
     </div>
 
     <script>
+      var currentPurchasingItem = '';
+
+      // Глобальная подписка на события VK Bridge
+      if (typeof vkBridge !== 'undefined' && vkBridge.subscribe) {
+        vkBridge.subscribe((e) => {
+          if (!e.detail) return;
+          const { type, data } = e.detail;
+
+          // Ловим успешное завершение покупки от ВК
+          if (type === 'VKWebAppShowOrderBoxResult') {
+            console.log('>>> [VK Event] Оплата успешно завершена:', data);
+            var itemId = currentPurchasingItem || (data && data.item);
+            
+            if (window.unityInstance && itemId) {
+              window.unityInstance.SendMessage('GameManager', 'GiveRewardByVKId', itemId);
+            } else {
+              console.error('Ошибка: unityInstance не найден или ID товара пустой!');
+            }
+          }
+        });
+      }
+
       function notifyVK() {
         if (window.parent && window.parent !== window) {
-          var payload = {
-            handler: 'VKWebAppInit',
-            params: {},
-            type: 'vk-connect'
-          };
+          var payload = { handler: 'VKWebAppInit', params: {}, type: 'vk-connect' };
           window.parent.postMessage(payload, '*');
-          try {
-            window.parent.postMessage(JSON.stringify(payload), '*');
-          } catch (e) {}
+          try { window.parent.postMessage(JSON.stringify(payload), '*'); } catch (e) {}
         }
-
         if (typeof vkBridge !== 'undefined' && vkBridge.send) {
           vkBridge.send('VKWebAppInit').catch(function() {});
         }
       }
 
-      // Функция вызова оплаты VK с гарантированным начислением в Unity
       function vkShowOrderBox(itemId) {
         console.log('>>> [vkShowOrderBox] Запрос покупки товара:', itemId);
+        currentPurchasingItem = itemId;
 
         if (typeof vkBridge !== 'undefined' && vkBridge.send) {
           vkBridge.send('VKWebAppShowOrderBox', {
             type: 'item',
             item: itemId
           }).then(function(data) {
-            console.log('Успешная покупка через VK Bridge:', data);
-            
-            // Начисление в Unity
+            console.log('>>> [Promise] Успешная покупка через VK Bridge:', data);
             if (window.unityInstance) {
               window.unityInstance.SendMessage('GameManager', 'GiveRewardByVKId', itemId);
-            } else {
-              console.error('Ошибка: window.unityInstance не найден при попытке начислить товар!');
             }
           }).catch(function(error) {
             console.error('Ошибка покупки VK Bridge:', error);
           });
-        } else {
-          console.warn('vkBridge не найден на странице, отправка через parent postMessage');
         }
 
         if (window.parent && window.parent !== window) {
@@ -83,9 +90,7 @@
             type: 'vk-connect'
           };
           window.parent.postMessage(payload, '*');
-          try {
-            window.parent.postMessage(JSON.stringify(payload), '*');
-          } catch (e) {}
+          try { window.parent.postMessage(JSON.stringify(payload), '*'); } catch (e) {}
         }
       }
 
@@ -148,21 +153,15 @@
           document.querySelector("#unity-progress-bar-full").style.width = 100 * progress + "%";
         }).then((unityInstance) => {
           document.querySelector("#unity-loading-bar").style.display = "none";
-          
-          // Глобальная ссылка на экземпляр Unity
           window.unityInstance = unityInstance;
 
           notifyVK();
-          setTimeout(function() {
-            clearInterval(initInterval);
-          }, 4000);
+          setTimeout(function() { clearInterval(initInterval); }, 4000);
 
           document.querySelector("#unity-fullscreen-button").onclick = () => {
             unityInstance.SetFullscreen(1);
           };
-        }).catch((message) => {
-          alert(message);
-        });
+        }).catch((message) => { alert(message); });
       };
 
       document.body.appendChild(script);
