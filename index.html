@@ -52,27 +52,18 @@
         }
       }
 
-      // Функция обработки покупок в ВК с передачей успеха в Unity
+      // Функция вызова оплаты VK с гарантированным начислением в Unity
       function vkShowOrderBox(itemId) {
         console.log('>>> [vkShowOrderBox] Запрос покупки товара:', itemId);
-
-        var payload = {
-          handler: 'VKWebAppShowOrderBox',
-          params: {
-            type: 'item',
-            item: itemId
-          },
-          type: 'vk-connect'
-        };
 
         if (typeof vkBridge !== 'undefined' && vkBridge.send) {
           vkBridge.send('VKWebAppShowOrderBox', {
             type: 'item',
             item: itemId
           }).then(function(data) {
-            console.log('Успешная покупка:', data);
+            console.log('Успешная покупка через VK Bridge:', data);
             
-            // ПЕРЕДАЕМ НАГРАДУ В UNITY
+            // Начисление в Unity
             if (window.unityInstance) {
               window.unityInstance.SendMessage('GameManager', 'GiveRewardByVKId', itemId);
             } else {
@@ -82,10 +73,15 @@
             console.error('Ошибка покупки VK Bridge:', error);
           });
         } else {
-          console.warn('vkBridge не найден на странице!');
+          console.warn('vkBridge не найден на странице, отправка через parent postMessage');
         }
 
         if (window.parent && window.parent !== window) {
+          var payload = {
+            handler: 'VKWebAppShowOrderBox',
+            params: { type: 'item', item: itemId },
+            type: 'vk-connect'
+          };
           window.parent.postMessage(payload, '*');
           try {
             window.parent.postMessage(JSON.stringify(payload), '*');
@@ -153,7 +149,7 @@
         }).then((unityInstance) => {
           document.querySelector("#unity-loading-bar").style.display = "none";
           
-          // СОХРАНЯЕМ ЭКЗЕМПЛЯР ДЛЯ ДОСТУПА ИЗВНЕ (ИСПРАВЛЕНИЕ)
+          // Глобальная ссылка на экземпляр Unity
           window.unityInstance = unityInstance;
 
           notifyVK();
