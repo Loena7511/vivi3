@@ -71,9 +71,12 @@
             item: itemId
           }).then(function(data) {
             console.log('Успешная покупка:', data);
-            // Передаем название купленного товара в GameManager в Unity
+            
+            // ПЕРЕДАЕМ НАГРАДУ В UNITY
             if (window.unityInstance) {
               window.unityInstance.SendMessage('GameManager', 'GiveRewardByVKId', itemId);
+            } else {
+              console.error('Ошибка: window.unityInstance не найден при попытке начислить товар!');
             }
           }).catch(function(error) {
             console.error('Ошибка покупки VK Bridge:', error);
@@ -150,6 +153,9 @@
         }).then((unityInstance) => {
           document.querySelector("#unity-loading-bar").style.display = "none";
           
+          // СОХРАНЯЕМ ЭКЗЕМПЛЯР ДЛЯ ДОСТУПА ИЗВНЕ (ИСПРАВЛЕНИЕ)
+          window.unityInstance = unityInstance;
+
           notifyVK();
           setTimeout(function() {
             clearInterval(initInterval);
