@@ -34,59 +34,52 @@
     <script>
       var currentPurchasingItem = '';
 
-      // Вспомогательная функция отправки награды в Unity
-      function sendRewardToUnity(itemId, source) {
-        if (window.unityInstance && itemId) {
-          console.log('>>> [' + source + '] Отправляем награду в Unity для товара:', itemId);
-          window.unityInstance.SendMessage('GameManager', 'GiveRewardByVKId', itemId);
-        } else {
-          console.error('>>> [' + source + '] Ошибка: unityInstance не найден или ID товара пустой!');
-        }
-      }
+      // Инициализация VK Bridge
+      if (typeof vkBridge !== 'undefined') {
+        vkBridge.send('VKWebAppInit');
 
-      // 1. Ловим ответ через браузерные сообщения postMessage (для десктопной версии ВК)
-      window.addEventListener('message', function(event) {
-        if (!event.data) return;
-        var data = event.data;
-        if (typeof data === 'string') {
-          try { data = JSON.parse(data); } catch(e) {}
-        }
-
-        var eventType = data.type || (data.detail && data.detail.type) || data.handler;
-        if (eventType === 'VKWebAppShowOrderBoxResult') {
-          console.log('>>> [postMessage] Успешная оплата получена от ВК!', data);
-          var itemId = currentPurchasingItem || (data.data && data.data.item) || (data.result && data.result.item);
-          sendRewardToUnity(itemId, 'postMessage');
-        }
-      });
-
-      // 2. Глобальная подписка на события VK Bridge
-      if (typeof vkBridge !== 'undefined' && vkBridge.subscribe) {
-        vkBridge.subscribe((e) => {
-          if (!e.detail) return;
-          const { type, data } = e.detail;
+        // Подписка на глобальные события ВК
+        vkBridge.subscribe(function(e) {
+          if (!e || !e.detail) return;
+          var type = e.detail.type;
+          var data = e.detail.data;
 
           if (type === 'VKWebAppShowOrderBoxResult') {
-            console.log('>>> [VK Event] Оплата успешно завершена:', data);
+            console.log('>>> [VK Event] Успешная покупка!', data);
             var itemId = currentPurchasingItem || (data && data.item);
             sendRewardToUnity(itemId, 'VK Bridge Subscribe');
           }
         });
       }
 
-      function notifyVK() {
-        if (window.parent && window.parent !== window) {
-          var payload = { handler: 'VKWebAppInit', params: {}, type: 'vk-connect' };
-          window.parent.postMessage(payload, '*');
-          try { window.parent.postMessage(JSON.stringify(payload), '*'); } catch (e) {}
-        }
-        if (typeof vkBridge !== 'undefined' && vkBridge.send) {
-          vkBridge.send('VKWebAppInit').catch(function() {});
+      // Функция отправки награды в Unity
+      function sendRewardToUnity(itemId, source) {
+        if (!itemId) itemId = currentPurchasingItem;
+        console.log('>>> [' + source + '] Начисление награды в Unity для:', itemId);
+        if (window.unityInstance && itemId) {
+          window.unityInstance.SendMessage('GameManager', 'GiveRewardByVKId', itemId);
+        } else {
+          console.error('>>> Ошибка: unityInstance не найден или ID товара пуст!');
         }
       }
 
+      // Подстраховка через сообщения окна
+      window.addEventListener('message', function(event) {
+        if (!event.data) return;
+        var data = event.data;
+        if (typeof data === 'string') {
+          try { data = JSON.parse(data); } catch(e) {}
+        }
+        var type = data.type || (data.detail && data.detail.type) || data.handler;
+        if (type === 'VKWebAppShowOrderBoxResult') {
+          console.log('>>> [postMessage] Успешная покупка!', data);
+          sendRewardToUnity(currentPurchasingItem, 'postMessage');
+        }
+      });
+
+      // Функция вызова окна покупки
       function vkShowOrderBox(itemId) {
-        console.log('>>> [vkShowOrderBox] Запрос покупки товара:', itemId);
+        console.log('>>> [vkShowOrderBox] Покупка товара:', itemId);
         currentPurchasingItem = itemId;
 
         if (typeof vkBridge !== 'undefined' && vkBridge.send) {
@@ -94,27 +87,14 @@
             type: 'item',
             item: itemId
           }).then(function(data) {
-            console.log('>>> [Promise] Успешная покупка через VK Bridge:', data);
+            console.log('>>> [Promise] Покупка завершена:', data);
             var targetItem = itemId || (data && data.item);
             sendRewardToUnity(targetItem, 'VK Bridge Promise');
-          }).catch(function(error) {
-            console.error('Ошибка покупки VK Bridge:', error);
+          }).catch(function(err) {
+            console.error('>>> Ошибка оплаты в VK Bridge:', err);
           });
         }
-
-        if (window.parent && window.parent !== window) {
-          var payload = {
-            handler: 'VKWebAppShowOrderBox',
-            params: { type: 'item', item: itemId },
-            type: 'vk-connect'
-          };
-          window.parent.postMessage(payload, '*');
-          try { window.parent.postMessage(JSON.stringify(payload), '*'); } catch (e) {}
-        }
       }
-
-      notifyVK();
-      var initInterval = setInterval(notifyVK, 300);
 
       var canvas = document.querySelector("#unity-canvas");
 
@@ -173,9 +153,6 @@
         }).then((unityInstance) => {
           document.querySelector("#unity-loading-bar").style.display = "none";
           window.unityInstance = unityInstance;
-
-          notifyVK();
-          setTimeout(function() { clearInterval(initInterval); }, 4000);
 
           document.querySelector("#unity-fullscreen-button").onclick = () => {
             unityInstance.SetFullscreen(1);
