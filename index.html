@@ -34,22 +34,42 @@
     <script>
       var currentPurchasingItem = '';
 
-      // Глобальная подписка на события VK Bridge
+      // Вспомогательная функция отправки награды в Unity
+      function sendRewardToUnity(itemId, source) {
+        if (window.unityInstance && itemId) {
+          console.log('>>> [' + source + '] Отправляем награду в Unity для товара:', itemId);
+          window.unityInstance.SendMessage('GameManager', 'GiveRewardByVKId', itemId);
+        } else {
+          console.error('>>> [' + source + '] Ошибка: unityInstance не найден или ID товара пустой!');
+        }
+      }
+
+      // 1. Ловим ответ через браузерные сообщения postMessage (для десктопной версии ВК)
+      window.addEventListener('message', function(event) {
+        if (!event.data) return;
+        var data = event.data;
+        if (typeof data === 'string') {
+          try { data = JSON.parse(data); } catch(e) {}
+        }
+
+        var eventType = data.type || (data.detail && data.detail.type) || data.handler;
+        if (eventType === 'VKWebAppShowOrderBoxResult') {
+          console.log('>>> [postMessage] Успешная оплата получена от ВК!', data);
+          var itemId = currentPurchasingItem || (data.data && data.data.item) || (data.result && data.result.item);
+          sendRewardToUnity(itemId, 'postMessage');
+        }
+      });
+
+      // 2. Глобальная подписка на события VK Bridge
       if (typeof vkBridge !== 'undefined' && vkBridge.subscribe) {
         vkBridge.subscribe((e) => {
           if (!e.detail) return;
           const { type, data } = e.detail;
 
-          // Ловим успешное завершение покупки от ВК
           if (type === 'VKWebAppShowOrderBoxResult') {
             console.log('>>> [VK Event] Оплата успешно завершена:', data);
             var itemId = currentPurchasingItem || (data && data.item);
-            
-            if (window.unityInstance && itemId) {
-              window.unityInstance.SendMessage('GameManager', 'GiveRewardByVKId', itemId);
-            } else {
-              console.error('Ошибка: unityInstance не найден или ID товара пустой!');
-            }
+            sendRewardToUnity(itemId, 'VK Bridge Subscribe');
           }
         });
       }
@@ -75,9 +95,8 @@
             item: itemId
           }).then(function(data) {
             console.log('>>> [Promise] Успешная покупка через VK Bridge:', data);
-            if (window.unityInstance) {
-              window.unityInstance.SendMessage('GameManager', 'GiveRewardByVKId', itemId);
-            }
+            var targetItem = itemId || (data && data.item);
+            sendRewardToUnity(targetItem, 'VK Bridge Promise');
           }).catch(function(error) {
             console.error('Ошибка покупки VK Bridge:', error);
           });
